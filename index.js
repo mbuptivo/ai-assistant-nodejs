@@ -18,6 +18,7 @@ var map = new Map();
 const apiKey = process.env.STREAM_API_KEY;
 const apiSecret = process.env.STREAM_API_SECRET;
 const serverClient = StreamChat.getInstance(apiKey, apiSecret);
+const user_id = "ai-bot"
 
 // Define the POST endpoint
 app.post('/start-ai-agent', async (req, res) => {
@@ -30,7 +31,6 @@ app.post('/start-ai-agent', async (req, res) => {
 
   try {
     if (!map.has(channel_id)) {
-      const user_id = "ai-bot"
       const client = await createAndConnectClient(user_id);
       map.set(channel_id, client);
       const channel = serverClient.channel('messaging', channel_id, {});
@@ -89,6 +89,7 @@ export async function stopWatching(channel_id, client) {
   console.log(`Stopping watching channel ${channel_id}`);
   const channel = client.channel('messaging', channel_id, {});
   await channel.stopWatching();
+  await channel.removeMembers([user_id]);
   client.off('message.new', messageNewHandler);
   client.off('stop_generating', stopGeneratingHandler);
   client.disconnectUser();
