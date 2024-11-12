@@ -34,6 +34,7 @@ app.post('/start-ai-agent', async (req, res) => {
       const client = await createAndConnectClient(user_id);
       map.set(channel_id, client);
       const channel = serverClient.channel('messaging', channel_id, {});
+      await channel.addMembers([user_id]);
       await channel.watch();
       main(channel, client);
     }
