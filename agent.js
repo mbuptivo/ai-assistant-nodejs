@@ -5,6 +5,7 @@ import { Channel, StreamChat } from 'stream-chat';
 import OpenAI from 'openai';
 import { EventEmitter } from 'events';
 import { text } from 'express';
+import axios from 'axios'
 
 // Initialize the Stream Chat client
 const apiKey = process.env.STREAM_API_KEY;
@@ -48,23 +49,6 @@ const assistant = await openai.beta.assistants.create({
           },
         },
       },
-      {
-        type: "function",
-        function: {
-          name: "getRainProbability",
-          description: "Get the probability of rain for a specific location",
-          parameters: {
-            type: "object",
-            properties: {
-              location: {
-                type: "string",
-                description: "The city and state, e.g., San Francisco, CA",
-              },
-            },
-            required: ["location"],
-          },
-        },
-      }
     ],
     model: "gpt-4o"
 });
@@ -151,7 +135,6 @@ class EventHandler extends EventEmitter {
 
   async onEvent(event) {
     try {
-      console.log("New event: ", event.event);
       // Retrieve events that are denoted with 'requires_action'
       // since these will have our tool_calls
       if (event.event === "thread.run.requires_action") {
@@ -201,24 +184,51 @@ class EventHandler extends EventEmitter {
 
   async handleRequiresAction(data, runId, threadId) {
     try {
-      const toolOutputs =
-        data.required_action.submit_tool_outputs.tool_calls.map((toolCall) => {
+      const toolOutputs = await Promise.all(
+        data.required_action.submit_tool_outputs.tool_calls.map(async (toolCall) => {
           if (toolCall.function.name === "getCurrentTemperature") {
+            const argumentsString = toolCall.function.arguments;
+            console.log("Arguments: ", argumentsString);
+            const args = JSON.parse(argumentsString);
+            const location = args.location;
+            const unit = args.unit;
+            const temperature = await this.getCurrentTemperature(location, unit);
+            const temperatureString = temperature.toString();
             return {
               tool_call_id: toolCall.id,
-              output: "6",
-            };
-          } else if (toolCall.function.name === "getRainProbability") {
-            return {
-              tool_call_id: toolCall.id,
-              output: "0.10",
+              output: temperatureString,
             };
           }
-        });
+        })
+      );
       // Submit all the tool outputs at the same time
       await this.submitToolOutputs(toolOutputs, runId, threadId);
     } catch (error) {
       console.error("Error processing required action:", error);
+    }
+  }
+
+  async getCurrentTemperature(location, metric) {
+    try {
+      const apiKey = process.env.OPENWEATHER_API_KEY;
+      if (!apiKey) {
+        throw new Error('OpenWeatherMap API key is missing. Set it in the .env file.');
+      }
+  
+      const encodedLocation = encodeURIComponent(location);
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodedLocation}&units=metric&appid=${apiKey}`;
+  
+      const response = await axios.get(url);
+      const { data } = response;
+  
+      if (data && data.main && typeof data.main.temp === 'number') {
+        return data.main.temp;
+      } else {
+        throw new Error('Temperature data not found in the API response.');
+      }
+    } catch (error) {
+      console.error(`Error fetching temperature for "${location}":`, error.message);
+      throw error;
     }
   }
 
