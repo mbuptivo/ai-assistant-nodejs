@@ -67,11 +67,12 @@ const run = openai.beta.threads.runs.stream(thread.id, {
   })
   .on('textDelta', (textDelta, snapshot) => {
     message_text += textDelta.value
-    if (chunk_counter % 15 === 0 || chunk_counter === 0) {
+    if (chunk_counter % 15 === 0 || chunk_counter === 0 || chunk_counter < 8) {
       var text = message_text
       serverClient.partialUpdateMessage(newMessage.id, {
         set: {
-            text
+            text,
+            generating: true
         }
       });
     }
@@ -81,7 +82,8 @@ const run = openai.beta.threads.runs.stream(thread.id, {
     var text = message_text
     serverClient.partialUpdateMessage(newMessage.id, {
       set: {
-          text
+          text,
+          generating: false
       }
     });
   })
