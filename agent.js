@@ -3,6 +3,7 @@
 import 'dotenv/config';
 import { Channel, StreamChat } from 'stream-chat';
 import OpenAI from 'openai';
+import { EventEmitter } from 'events';
 import { text } from 'express';
 
 // Initialize the Stream Chat client
@@ -22,7 +23,49 @@ var newMessage;
 const assistant = await openai.beta.assistants.create({
     name: "Stream AI Assistant",
     instructions: "You are an AI assistant. Help users with their questions.",
-    tools: [{ type: "code_interpreter" }],
+    tools: [
+      { type: "code_interpreter" },
+      {
+        type: "function",
+        function: {
+          name: "getCurrentTemperature",
+          description: "Get the current temperature for a specific location",
+          parameters: {
+            type: "object",
+            properties: {
+              location: {
+                type: "string",
+                description: "The city and state, e.g., San Francisco, CA",
+              },
+              unit: {
+                type: "string",
+                enum: ["Celsius", "Fahrenheit"],
+                description:
+                  "The temperature unit to use. Infer this from the user's location.",
+              },
+            },
+            required: ["location", "unit"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "getRainProbability",
+          description: "Get the probability of rain for a specific location",
+          parameters: {
+            type: "object",
+            properties: {
+              location: {
+                type: "string",
+                description: "The city and state, e.g., San Francisco, CA",
+              },
+            },
+            required: ["location"],
+          },
+        },
+      }
+    ],
     model: "gpt-4o"
 });
 
@@ -55,57 +98,20 @@ channel.sendEvent({
 var message_text = '';
 var chunk_counter = 0
 
+const eventHandler = new EventHandler(openai, channel);
+eventHandler.on("event", eventHandler.onEvent.bind(eventHandler));
+
 const run = openai.beta.threads.runs.stream(thread.id, {
     assistant_id: assistant.id
-  })
-  .on('textCreated', (text) => {
-    
-    channel.sendEvent({
-      type: 'ai_indicator_changed',
-      state: 'Clear'
-    });
-  })
-  .on('textDelta', (textDelta, snapshot) => {
-    message_text += textDelta.value
-    if (chunk_counter % 15 === 0 || chunk_counter === 0 || chunk_counter < 8) {
-      var text = message_text
-      serverClient.partialUpdateMessage(newMessage.id, {
-        set: {
-            text,
-            generating: true
-        }
-      });
-    }
-    chunk_counter += 1    
-  })
-  .on('textDone', (content, snapshot) => {
-    var text = message_text
-    serverClient.partialUpdateMessage(newMessage.id, {
-      set: {
-          text,
-          generating: false
-      }
-    });
-  })
-  .on('toolCallCreated', (toolCall) => process.stdout.write(`\nassistant > ${toolCall.type}\n\n`))
-  .on('runStepCreated', (runStep) => run_id = runStep.run_id)
-  .on('toolCallDelta', (toolCallDelta, snapshot) => {
-    if (toolCallDelta.type === 'code_interpreter') {
-      if (toolCallDelta.code_interpreter.input) {
-        process.stdout.write(toolCallDelta.code_interpreter.input);
-      }
-      if (toolCallDelta.code_interpreter.outputs) {
-        process.stdout.write("\noutput >\n");
-        toolCallDelta.code_interpreter.outputs.forEach(output => {
-          if (output.type === "logs") {
-            process.stdout.write(`\n${output.logs}\n`);
-          }
-        });
-      }
-    }
-  });
+  }, 
+    eventHandler
+  )
 
   run_id = run.id
+
+  for await (const event of run) {
+    eventHandler.emit("event", event);
+  }
 }
 
 export async function setupAgent(agentChannel, client) {
@@ -133,3 +139,102 @@ export const stopGeneratingHandler = (event) => {
   process.stdout.write("Stop generating\n")
   openai.beta.threads.runs.cancel(thread.id, run_id);
 };
+
+class EventHandler extends EventEmitter {
+  constructor(client, channel) {
+    super();
+    this.client = client;
+    this.channel = channel;
+    this.message_text = '';
+    this.chunk_counter = 0;
+  }
+
+  async onEvent(event) {
+    try {
+      console.log("New event: ", event.event);
+      // Retrieve events that are denoted with 'requires_action'
+      // since these will have our tool_calls
+      if (event.event === "thread.run.requires_action") {
+        console.log("Requires action");
+        channel.sendEvent({
+          type: 'ai_indicator_changed',
+          state: 'Checking external sources'
+        });
+        await this.handleRequiresAction(
+          event.data,
+          event.data.id,
+          event.data.thread_id,
+        );
+      } else if (event.event === "thread.message.created") {
+        channel.sendEvent({
+          type: 'ai_indicator_changed',
+          state: 'Clear'
+        });
+      } else if (event.event === "thread.message.delta") {
+        console.log(event.data.delta.content[0].text.value);
+        this.message_text += event.data.delta.content[0].text.value
+        if (this.chunk_counter % 15 === 0 || this.chunk_counter === 0 || this.chunk_counter < 8) {
+          var text = this.message_text
+          serverClient.partialUpdateMessage(newMessage.id, {
+            set: {
+                text,
+                generating: true
+            }
+          });
+        }
+        this.chunk_counter += 1 
+      } else if (event.event === "thread.message.completed") {
+        var text = this.message_text
+        serverClient.partialUpdateMessage(newMessage.id, {
+          set: {
+              text,
+              generating: false
+          }
+        });
+      } else if (event.event === "thread.run.step.created") {
+        run_id = event.data.id
+      }
+    } catch (error) {
+      console.error("Error handling event:", error);
+    }
+  }
+
+  async handleRequiresAction(data, runId, threadId) {
+    try {
+      const toolOutputs =
+        data.required_action.submit_tool_outputs.tool_calls.map((toolCall) => {
+          if (toolCall.function.name === "getCurrentTemperature") {
+            return {
+              tool_call_id: toolCall.id,
+              output: "6",
+            };
+          } else if (toolCall.function.name === "getRainProbability") {
+            return {
+              tool_call_id: toolCall.id,
+              output: "0.10",
+            };
+          }
+        });
+      // Submit all the tool outputs at the same time
+      await this.submitToolOutputs(toolOutputs, runId, threadId);
+    } catch (error) {
+      console.error("Error processing required action:", error);
+    }
+  }
+
+  async submitToolOutputs(toolOutputs, runId, threadId) {
+    try {
+      // Use the submitToolOutputsStream helper
+      const stream = this.client.beta.threads.runs.submitToolOutputsStream(
+        threadId,
+        runId,
+        { tool_outputs: toolOutputs },
+      );
+      for await (const event of stream) {
+        this.emit("event", event);
+      }
+    } catch (error) {
+      console.error("Error submitting tool outputs:", error);
+    }
+  }
+}
