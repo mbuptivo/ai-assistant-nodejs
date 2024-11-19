@@ -79,9 +79,6 @@ channel.sendEvent({
   state: 'Thinking'
 });
 
-var message_text = '';
-var chunk_counter = 0
-
 const eventHandler = new EventHandler(openai, channel);
 eventHandler.on("event", eventHandler.onEvent.bind(eventHandler));
 
@@ -122,6 +119,15 @@ export const messageNewHandler = (event) => {
 export const stopGeneratingHandler = (event) => {
   process.stdout.write("Stop generating\n")
   openai.beta.threads.runs.cancel(thread.id, run_id);
+  serverClient.partialUpdateMessage(newMessage.id, {
+    set: {
+        generating: false
+    }
+  });
+  channel.sendEvent({
+    type: 'ai_indicator_changed',
+    state: 'Clear'
+  });
 };
 
 class EventHandler extends EventEmitter {
@@ -151,12 +157,11 @@ class EventHandler extends EventEmitter {
       } else if (event.event === "thread.message.created") {
         channel.sendEvent({
           type: 'ai_indicator_changed',
-          state: 'Clear'
+          state: 'Generating'
         });
       } else if (event.event === "thread.message.delta") {
-        console.log(event.data.delta.content[0].text.value);
         this.message_text += event.data.delta.content[0].text.value
-        if (this.chunk_counter % 15 === 0 || this.chunk_counter === 0 || this.chunk_counter < 8) {
+        if (this.chunk_counter % 15 === 0 || (this.chunk_counter < 8 && this.chunk_counter % 2 ===0)) {
           var text = this.message_text
           serverClient.partialUpdateMessage(newMessage.id, {
             set: {
@@ -173,6 +178,10 @@ class EventHandler extends EventEmitter {
               text,
               generating: false
           }
+        });
+        channel.sendEvent({
+          type: 'ai_indicator_changed',
+          state: 'Clear'
         });
       } else if (event.event === "thread.run.step.created") {
         run_id = event.data.id
