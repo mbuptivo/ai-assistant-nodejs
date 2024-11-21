@@ -76,7 +76,9 @@ newMessage = (await channel.sendMessage({
  
 channel.sendEvent({
   type: 'ai_indicator_changed',
-  typingState: 'io.getstream.ai.thinking'
+  typing_state: 'io.getstream.ai.thinking',
+  cid: newMessage.cid,
+  message_id: newMessage.id
 });
 
 const eventHandler = new EventHandler(openai, channel);
@@ -130,7 +132,9 @@ export const stopGeneratingHandler = (event) => {
   });
   channel.sendEvent({
     type: 'ai_indicator_changed',
-    typingState: 'io.getstream.ai.clear'
+    typing_state: 'io.getstream.ai.clear',
+    cid: newMessage.cid,
+    message_id: newMessage.id
   });
 };
 
@@ -151,7 +155,9 @@ class EventHandler extends EventEmitter {
         console.log("Requires action");
         channel.sendEvent({
           type: 'ai_indicator_changed',
-          typingState: 'io.getstream.ai.external_sources'
+          typing_state: 'io.getstream.ai.external_sources',
+          cid: newMessage.cid,
+          message_id: newMessage.id
         });
         await this.handleRequiresAction(
           event.data,
@@ -161,7 +167,9 @@ class EventHandler extends EventEmitter {
       } else if (event.event === "thread.message.created") {
         channel.sendEvent({
           type: 'ai_indicator_changed',
-          typingState: 'io.getstream.ai.generating'
+          typing_state: 'io.getstream.ai.generating',
+          cid: newMessage.cid,
+          message_id: newMessage.id
         });
       } else if (event.event === "thread.message.delta") {
         this.message_text += event.data.delta.content[0].text.value
@@ -185,7 +193,9 @@ class EventHandler extends EventEmitter {
         });
         channel.sendEvent({
           type: 'ai_indicator_changed',
-          typingState: 'io.getstream.ai.clear'
+          typing_state: 'io.getstream.ai.clear',
+          cid: newMessage.cid,
+          message_id: newMessage.id
         });
       } else if (event.event === "thread.run.step.created") {
         run_id = event.data.id
@@ -266,7 +276,9 @@ class EventHandler extends EventEmitter {
   handleError() {
     channel.sendEvent({
       type: 'ai_indicator_changed',
-      typingState: 'io.getstream.ai.error'
+      typing_state: 'io.getstream.ai.error',
+      cid: newMessage.cid,
+      message_id: newMessage.id
     });
     serverClient.partialUpdateMessage(newMessage.id, {
       set: {
