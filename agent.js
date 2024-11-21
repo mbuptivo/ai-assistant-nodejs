@@ -76,7 +76,7 @@ newMessage = (await channel.sendMessage({
  
 channel.sendEvent({
   type: 'ai_indicator_changed',
-  state: 'Thinking'
+  typingState: 'io.getstream.ai.thinking'
 });
 
 const eventHandler = new EventHandler(openai, channel);
@@ -113,7 +113,11 @@ export const messageNewHandler = (event) => {
     process.stdout.write("Skip handling ai generated message\n");
     return;
   }
-  handleMessage(event.message.text, thread, channel);
+  try {
+    handleMessage(event.message.text, thread, channel);
+  } catch (error) {
+    console.error('Error handling the message:', error);
+  }
 };
 
 export const stopGeneratingHandler = (event) => {
@@ -126,7 +130,7 @@ export const stopGeneratingHandler = (event) => {
   });
   channel.sendEvent({
     type: 'ai_indicator_changed',
-    state: 'Clear'
+    typingState: 'io.getstream.ai.clear'
   });
 };
 
@@ -147,7 +151,7 @@ class EventHandler extends EventEmitter {
         console.log("Requires action");
         channel.sendEvent({
           type: 'ai_indicator_changed',
-          state: 'Checking external sources'
+          typingState: 'io.getstream.ai.external_sources'
         });
         await this.handleRequiresAction(
           event.data,
@@ -157,7 +161,7 @@ class EventHandler extends EventEmitter {
       } else if (event.event === "thread.message.created") {
         channel.sendEvent({
           type: 'ai_indicator_changed',
-          state: 'Generating'
+          typingState: 'io.getstream.ai.generating'
         });
       } else if (event.event === "thread.message.delta") {
         this.message_text += event.data.delta.content[0].text.value
@@ -181,7 +185,7 @@ class EventHandler extends EventEmitter {
         });
         channel.sendEvent({
           type: 'ai_indicator_changed',
-          state: 'Clear'
+          typingState: 'io.getstream.ai.clear'
         });
       } else if (event.event === "thread.run.step.created") {
         run_id = event.data.id
@@ -214,6 +218,7 @@ class EventHandler extends EventEmitter {
       await this.submitToolOutputs(toolOutputs, runId, threadId);
     } catch (error) {
       console.error("Error processing required action:", error);
+      this.handleError();
     }
   }
 
@@ -254,6 +259,20 @@ class EventHandler extends EventEmitter {
       }
     } catch (error) {
       console.error("Error submitting tool outputs:", error);
+      this.handleError();
     }
+  }
+
+  handleError() {
+    channel.sendEvent({
+      type: 'ai_indicator_changed',
+      typingState: 'io.getstream.ai.error'
+    });
+    serverClient.partialUpdateMessage(newMessage.id, {
+      set: {
+          text: "Error generating the message",
+          generating: false
+      }
+    });
   }
 }
