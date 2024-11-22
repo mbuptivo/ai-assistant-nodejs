@@ -73,7 +73,7 @@ export async function createAndConnectClient(user_id) {
   const token = serverClient.createToken(user_id);
 
   // Upsert the user (creates or updates the user)
-  await serverClient.upsertUser({ id: user_id, role: "ai_bot" });
+  await serverClient.upsertUser({ id: user_id, role: "admin" });
 
   // Initialize the client-side client
   const client = StreamChat.getInstance(apiKey);
