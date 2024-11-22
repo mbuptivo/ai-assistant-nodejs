@@ -169,12 +169,7 @@ class EventHandler extends EventEmitter {
           state: 'AI_STATE_GENERATING',
           cid: newMessage.cid,
           message_id: newMessage.id
-        });
-        channel.sendEvent({
-          type: 'ai_indicator_clear',
-          cid: newMessage.cid,
-          message_id: newMessage.id
-        });
+        });        
       } else if (event.event === "thread.message.delta") {
         this.message_text += event.data.delta.content[0].text.value
         if (this.chunk_counter % 15 === 0 || (this.chunk_counter < 8 && this.chunk_counter % 2 ===0)) {
@@ -194,7 +189,12 @@ class EventHandler extends EventEmitter {
               text,
               generating: false
           }
-        });        
+        });
+        channel.sendEvent({
+          type: 'ai_indicator_clear',
+          cid: newMessage.cid,
+          message_id: newMessage.id
+        });
       } else if (event.event === "thread.run.step.created") {
         run_id = event.data.id
       }
@@ -226,6 +226,7 @@ class EventHandler extends EventEmitter {
       await this.submitToolOutputs(toolOutputs, runId, threadId);
     } catch (error) {
       console.error("Error processing required action:", error);
+      openai.beta.threads.runs.cancel(threadId, runId);
       this.handleError(error);
     }
   }
