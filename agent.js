@@ -1,11 +1,10 @@
 // main.js
 
 import 'dotenv/config';
-import { Channel, StreamChat } from 'stream-chat';
+import { StreamChat } from 'stream-chat';
 import OpenAI from 'openai';
 import { EventEmitter } from 'events';
-import { text } from 'express';
-import axios from 'axios'
+import axios from 'axios';
 
 // Initialize the Stream Chat client
 const apiKey = process.env.STREAM_API_KEY;
@@ -22,78 +21,79 @@ var channel;
 var newMessage;
 
 const assistant = await openai.beta.assistants.create({
-    name: "Stream AI Assistant",
-    instructions: "You are an AI assistant. Help users with their questions.",
-    tools: [
-      { type: "code_interpreter" },
-      {
-        type: "function",
-        function: {
-          name: "getCurrentTemperature",
-          description: "Get the current temperature for a specific location",
-          parameters: {
-            type: "object",
-            properties: {
-              location: {
-                type: "string",
-                description: "The city and state, e.g., San Francisco, CA",
-              },
-              unit: {
-                type: "string",
-                enum: ["Celsius", "Fahrenheit"],
-                description:
-                  "The temperature unit to use. Infer this from the user's location.",
-              },
+  name: 'Stream AI Assistant',
+  instructions: 'You are an AI assistant. Help users with their questions.',
+  tools: [
+    { type: 'code_interpreter' },
+    {
+      type: 'function',
+      function: {
+        name: 'getCurrentTemperature',
+        description: 'Get the current temperature for a specific location',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: {
+              type: 'string',
+              description: 'The city and state, e.g., San Francisco, CA',
             },
-            required: ["location", "unit"],
+            unit: {
+              type: 'string',
+              enum: ['Celsius', 'Fahrenheit'],
+              description:
+                "The temperature unit to use. Infer this from the user's location.",
+            },
           },
+          required: ['location', 'unit'],
         },
       },
-    ],
-    model: "gpt-4o"
+    },
+  ],
+  model: 'gpt-4o',
 });
 
 var run_id = '';
 
 // Define the main processing function
 export async function main(channel, client) {
-    setupAgent(channel, client);
+  setupAgent(channel, client);
 }
 
 export async function handleMessage(message, thread, channel) {
-  const aiMessage = await openai.beta.threads.messages.create(
+  const aiMessage = await openai.beta.threads.messages.create(thread.id, {
+    role: 'user',
+    content: message,
+  });
+
+  newMessage = (
+    await channel.sendMessage({
+      text: '',
+      ai_generated: true,
+    })
+  ).message;
+
+  channel.sendEvent({
+    type: 'ai_indicator_changed',
+    state: 'AI_STATE_THINKING',
+    cid: newMessage.cid,
+    message_id: newMessage.id,
+  });
+
+  const eventHandler = new EventHandler(openai, channel);
+  eventHandler.on('event', eventHandler.onEvent.bind(eventHandler));
+
+  const run = openai.beta.threads.runs.stream(
     thread.id,
     {
-      role: "user",
-      content: message
-    }
-);
-
-newMessage = (await channel.sendMessage({
-  text: '',
-  ai_generated: true
-})).message;
- 
-channel.sendEvent({
-  type: 'ai_indicator_changed',
-  state: 'AI_STATE_THINKING',
-  cid: newMessage.cid,
-  message_id: newMessage.id
-});
-
-const eventHandler = new EventHandler(openai, channel);
-eventHandler.on("event", eventHandler.onEvent.bind(eventHandler));
-
-const run = openai.beta.threads.runs.stream(thread.id, {
-    assistant_id: assistant.id
-  }, 
+      assistant_id: assistant.id,
+    },
     eventHandler
-  )
+  );
 
-  run_id = run.id
+  run_id = run.id;
 
   for await (const event of run) {
-    eventHandler.emit("event", event);
+    eventHandler.emit('event', event);
   }
 }
 
@@ -112,7 +112,7 @@ export async function setupAgent(agentChannel, client) {
 export const messageNewHandler = (event) => {
   console.log('New message:', event.message.text);
   if (event.message.ai_generated === true) {
-    process.stdout.write("Skip handling ai generated message\n");
+    process.stdout.write('Skip handling ai generated message\n');
     return;
   }
   try {
@@ -123,17 +123,17 @@ export const messageNewHandler = (event) => {
 };
 
 export const stopGeneratingHandler = (event) => {
-  process.stdout.write("Stop generating\n")
+  process.stdout.write('Stop generating\n');
   openai.beta.threads.runs.cancel(thread.id, run_id);
   serverClient.partialUpdateMessage(newMessage.id, {
     set: {
-        generating: false
-    }
+      generating: false,
+    },
   });
   channel.sendEvent({
     type: 'ai_indicator_clear',
     cid: newMessage.cid,
-    message_id: newMessage.id
+    message_id: newMessage.id,
   });
 };
 
@@ -150,82 +150,90 @@ class EventHandler extends EventEmitter {
     try {
       // Retrieve events that are denoted with 'requires_action'
       // since these will have our tool_calls
-      if (event.event === "thread.run.requires_action") {
-        console.log("Requires action");
+      if (event.event === 'thread.run.requires_action') {
+        console.log('Requires action');
         channel.sendEvent({
           type: 'ai_indicator_changed',
           state: 'AI_STATE_EXTERNAL_SOURCES',
           cid: newMessage.cid,
-          message_id: newMessage.id
+          message_id: newMessage.id,
         });
         await this.handleRequiresAction(
           event.data,
           event.data.id,
-          event.data.thread_id,
+          event.data.thread_id
         );
-      } else if (event.event === "thread.message.created") {
+      } else if (event.event === 'thread.message.created') {
         channel.sendEvent({
           type: 'ai_indicator_changed',
           state: 'AI_STATE_GENERATING',
           cid: newMessage.cid,
-          message_id: newMessage.id
-        });        
-      } else if (event.event === "thread.message.delta") {
-        this.message_text += event.data.delta.content[0].text.value
-        if (this.chunk_counter % 15 === 0 || (this.chunk_counter < 8 && this.chunk_counter % 2 ===0)) {
-          var text = this.message_text
+          message_id: newMessage.id,
+        });
+      } else if (event.event === 'thread.message.delta') {
+        this.message_text += event.data.delta.content[0].text.value;
+        if (
+          this.chunk_counter % 15 === 0 ||
+          (this.chunk_counter < 8 && this.chunk_counter % 2 === 0)
+        ) {
+          var text = this.message_text;
           serverClient.partialUpdateMessage(newMessage.id, {
             set: {
-                text,
-                generating: true
-            }
+              text,
+              generating: true,
+            },
           });
         }
-        this.chunk_counter += 1 
-      } else if (event.event === "thread.message.completed") {
-        var text = this.message_text
+        this.chunk_counter += 1;
+      } else if (event.event === 'thread.message.completed') {
+        var text = this.message_text;
         serverClient.partialUpdateMessage(newMessage.id, {
           set: {
-              text,
-              generating: false
-          }
+            text,
+            generating: false,
+          },
         });
         channel.sendEvent({
           type: 'ai_indicator_clear',
           cid: newMessage.cid,
-          message_id: newMessage.id
+          message_id: newMessage.id,
         });
-      } else if (event.event === "thread.run.step.created") {
-        run_id = event.data.id
+      } else if (event.event === 'thread.run.step.created') {
+        run_id = event.data.id;
       }
     } catch (error) {
-      console.error("Error handling event:", error);
+      console.error('Error handling event:', error);
     }
   }
 
   async handleRequiresAction(data, runId, threadId) {
     try {
       const toolOutputs = await Promise.all(
-        data.required_action.submit_tool_outputs.tool_calls.map(async (toolCall) => {
-          if (toolCall.function.name === "getCurrentTemperature") {
-            const argumentsString = toolCall.function.arguments;
-            console.log("Arguments: ", argumentsString);
-            const args = JSON.parse(argumentsString);
-            const location = args.location;
-            const unit = args.unit;
-            const temperature = await this.getCurrentTemperature(location, unit);
-            const temperatureString = temperature.toString();
-            return {
-              tool_call_id: toolCall.id,
-              output: temperatureString,
-            };
+        data.required_action.submit_tool_outputs.tool_calls.map(
+          async (toolCall) => {
+            if (toolCall.function.name === 'getCurrentTemperature') {
+              const argumentsString = toolCall.function.arguments;
+              console.log('Arguments: ', argumentsString);
+              const args = JSON.parse(argumentsString);
+              const location = args.location;
+              const unit = args.unit;
+              const temperature = await this.getCurrentTemperature(
+                location,
+                unit
+              );
+              const temperatureString = temperature.toString();
+              return {
+                tool_call_id: toolCall.id,
+                output: temperatureString,
+              };
+            }
           }
-        })
+        )
       );
       // Submit all the tool outputs at the same time
       await this.submitToolOutputs(toolOutputs, runId, threadId);
     } catch (error) {
-      console.error("Error processing required action:", error);
+      console.error('Error processing required action:', error);
       openai.beta.threads.runs.cancel(threadId, runId);
       this.handleError(error);
     }
@@ -235,22 +243,27 @@ class EventHandler extends EventEmitter {
     try {
       const apiKey = process.env.OPENWEATHER_API_KEY;
       if (!apiKey) {
-        throw new Error('OpenWeatherMap API key is missing. Set it in the .env file.');
+        throw new Error(
+          'OpenWeatherMap API key is missing. Set it in the .env file.'
+        );
       }
-  
+
       const encodedLocation = encodeURIComponent(location);
       const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodedLocation}&units=metric&appid=${apiKey}`;
-  
+
       const response = await axios.get(url);
       const { data } = response;
-  
+
       if (data && data.main && typeof data.main.temp === 'number') {
         return data.main.temp;
       } else {
         throw new Error('Temperature data not found in the API response.');
       }
     } catch (error) {
-      console.error(`Error fetching temperature for "${location}":`, error.message);
+      console.error(
+        `Error fetching temperature for "${location}":`,
+        error.message
+      );
       throw error;
     }
   }
@@ -261,13 +274,13 @@ class EventHandler extends EventEmitter {
       const stream = this.client.beta.threads.runs.submitToolOutputsStream(
         threadId,
         runId,
-        { tool_outputs: toolOutputs },
+        { tool_outputs: toolOutputs }
       );
       for await (const event of stream) {
-        this.emit("event", event);
+        this.emit('event', event);
       }
     } catch (error) {
-      console.error("Error submitting tool outputs:", error);
+      console.error('Error submitting tool outputs:', error);
       this.handleError(error);
     }
   }
@@ -277,14 +290,14 @@ class EventHandler extends EventEmitter {
       type: 'ai_indicator_changed',
       state: 'AI_STATE_ERROR',
       cid: newMessage.cid,
-      message_id: newMessage.id
+      message_id: newMessage.id,
     });
     serverClient.partialUpdateMessage(newMessage.id, {
       set: {
-          text: "Error generating the message",
-          message: error.toString(),
-          generating: false
-      }
+        text: 'Error generating the message',
+        message: error.toString(),
+        generating: false,
+      },
     });
   }
 }
