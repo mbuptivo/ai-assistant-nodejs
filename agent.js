@@ -5,6 +5,7 @@ import { StreamChat } from 'stream-chat';
 import OpenAI from 'openai';
 import { EventEmitter } from 'events';
 import axios from 'axios';
+import Anthropic from '@anthropic-ai/sdk';
 
 // Initialize the Stream Chat client
 const apiKey = process.env.STREAM_API_KEY;
@@ -16,9 +17,16 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
 var thread;
 var channel;
 var newMessage;
+var anthropicStream;
+var streamStopped = false;
+var useOpenAI = false;
 
 const assistant = await openai.beta.assistants.create({
   name: 'Stream AI Assistant',
@@ -60,6 +68,75 @@ export async function main(channel, client) {
 }
 
 export async function handleMessage(message, thread, channel) {
+  if (!useOpenAI) {
+    var message_text = '';
+    var chunk_counter = 0;
+    streamStopped = false;
+    newMessage = (
+      await channel.sendMessage({
+        text: '',
+        ai_generated: true,
+      })
+    ).message;
+
+    channel.sendEvent({
+      type: 'ai_indicator_changed',
+      state: 'AI_STATE_THINKING',
+      cid: newMessage.cid,
+      message_id: newMessage.id,
+    });
+
+    anthropicStream = await anthropic.messages.create({
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: message }],
+      model: 'claude-3-5-sonnet-20241022',
+      stream: true,
+    });
+    for await (const messageStreamEvent of anthropicStream) {
+      console.log(messageStreamEvent.type);
+      if (streamStopped) {
+        return;
+      }
+      if (messageStreamEvent.type === 'content_block_start') {
+        channel.sendEvent({
+          type: 'ai_indicator_changed',
+          state: 'AI_STATE_GENERATING',
+          cid: newMessage.cid,
+          message_id: newMessage.id,
+        });
+      } else if (messageStreamEvent.type === 'content_block_delta') {
+        message_text += messageStreamEvent.delta.text;
+        if (
+          chunk_counter % 15 === 0 ||
+          (chunk_counter < 8 && chunk_counter % 2 === 0)
+        ) {
+          var text = message_text;
+          serverClient.partialUpdateMessage(newMessage.id, {
+            set: {
+              text,
+              generating: true,
+            },
+          });
+        }
+        chunk_counter += 1;
+      } else if (messageStreamEvent.type === 'message_stop') {
+        var text = message_text;
+        serverClient.partialUpdateMessage(newMessage.id, {
+          set: {
+            text,
+            generating: false,
+          },
+        });
+        channel.sendEvent({
+          type: 'ai_indicator_clear',
+          cid: newMessage.cid,
+          message_id: newMessage.id,
+        });
+      }
+    }
+    return;
+  }
+
   const aiMessage = await openai.beta.threads.messages.create(thread.id, {
     role: 'user',
     content: message,
@@ -99,6 +176,18 @@ export async function handleMessage(message, thread, channel) {
 
 export async function setupAgent(agentChannel, client) {
   try {
+    channel = agentChannel;
+
+    client.on('message.new', messageNewHandler);
+    client.on('stop_generating', stopGeneratingHandler);
+  } catch (error) {
+    console.error('Error setting up user:', error);
+  }
+}
+
+export async function setupAgentOpenAI(agentChannel, client) {
+  try {
+    useOpenAI = true;
     thread = await openai.beta.threads.create();
     channel = agentChannel;
 
@@ -124,7 +213,12 @@ export const messageNewHandler = (event) => {
 
 export const stopGeneratingHandler = (event) => {
   process.stdout.write('Stop generating\n');
-  openai.beta.threads.runs.cancel(thread.id, run_id);
+  if (useOpenAI) {
+    openai.beta.threads.runs.cancel(thread.id, run_id);
+  } else {
+    streamStopped = true;
+    anthropicStream.controller.abort();
+  }
   serverClient.partialUpdateMessage(newMessage.id, {
     set: {
       generating: false,
