@@ -71,7 +71,6 @@ app.post('/stop-ai-agent', async (req, res) => {
     await aiAgent!.dispose();
 
     const channel = serverClient.channel(channel_type, channel_id);
-    await channel.stopWatching();
     await channel.removeMembers([`ai-bot-${channel_id}`]);
 
     aiAgentCache.delete(cid);
