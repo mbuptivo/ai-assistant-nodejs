@@ -51,7 +51,7 @@ app.post('/start-ai-agent', async (req, res) => {
       );
 
       await agent.init();
-      aiAgentCache.set(channel_id, agent);
+      aiAgentCache.set(cid, agent);
     }
 
     res.json({ message: 'AI Agent started', data: [] });
@@ -74,7 +74,7 @@ app.post('/stop-ai-agent', async (req, res) => {
     await channel.stopWatching();
     await channel.removeMembers([`ai-bot-${channel_id}`]);
 
-    aiAgentCache.delete(channel_id);
+    aiAgentCache.delete(cid);
   }
   res.json({ message: 'AI Agent stopped', data: [] });
 });
