@@ -1,0 +1,86 @@
+import Anthropic from '@anthropic-ai/sdk';
+import type { Stream } from '@anthropic-ai/sdk/streaming';
+import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages';
+import type { Channel, MessageResponse, StreamChat } from 'stream-chat';
+
+export class AnthropicResponseHandler {
+  private message_text = '';
+  private chunk_counter = 0;
+
+  constructor(
+    private readonly anthropicStream: Stream<RawMessageStreamEvent>,
+    private readonly chatClient: StreamChat,
+    private readonly channel: Channel,
+    private readonly message: MessageResponse,
+  ) {
+    this.chatClient.on('stop_generating', this.handleStopGenerating);
+  }
+
+  run = async () => {
+    for await (const messageStreamEvent of this.anthropicStream) {
+      await this.handle(messageStreamEvent);
+    }
+  };
+
+  dispose = () => {
+    this.chatClient.off('stop_generating', this.handleStopGenerating);
+  };
+
+  private handleStopGenerating = async () => {
+    console.log('Stop generating');
+    if (!this.anthropicStream) {
+      console.log('Anthropic not initialized');
+      return;
+    }
+    this.anthropicStream.controller.abort();
+    await this.chatClient.partialUpdateMessage(this.message.id, {
+      set: { generating: false },
+    });
+    await this.channel.sendEvent({
+      // @ts-expect-error - will become available in the next version of the types
+      type: 'ai_indicator_clear',
+      cid: this.message.cid,
+      message_id: this.message.id,
+    });
+  };
+
+  private handle = async (
+    messageStreamEvent: Anthropic.Messages.RawMessageStreamEvent,
+  ) => {
+    switch (messageStreamEvent.type) {
+      case 'content_block_start':
+        await this.channel.sendEvent({
+          // @ts-expect-error
+          type: 'ai_indicator_changed',
+          state: 'AI_STATE_GENERATING',
+          cid: this.message.cid,
+          message_id: this.message.id,
+        });
+        break;
+      case 'content_block_delta':
+        if (messageStreamEvent.delta.type !== 'text_delta') break;
+        this.message_text += messageStreamEvent.delta.text;
+        if (
+          this.chunk_counter % 15 === 0 ||
+          (this.chunk_counter < 8 && this.chunk_counter % 2 === 0)
+        ) {
+          await this.chatClient.partialUpdateMessage(this.message.id, {
+            set: { text: this.message_text, generating: true },
+          });
+        }
+        this.chunk_counter++;
+        break;
+      case 'message_stop':
+        await this.chatClient.partialUpdateMessage(this.message.id, {
+          set: { text: this.message_text, generating: false },
+        });
+        await this.channel.sendEvent({
+          // @ts-expect-error
+          type: 'ai_indicator_clear',
+          cid: this.message.cid,
+          message_id: this.message.id,
+        });
+        break;
+    }
+  };
+}
