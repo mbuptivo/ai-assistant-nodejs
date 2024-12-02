@@ -18,7 +18,11 @@ export class AnthropicResponseHandler {
 
   run = async () => {
     for await (const messageStreamEvent of this.anthropicStream) {
-      await this.handle(messageStreamEvent);
+      try {
+        await this.handle(messageStreamEvent);
+      } catch (error) {
+        console.error('Error handling message stream event', error);
+      }
     }
   };
 
