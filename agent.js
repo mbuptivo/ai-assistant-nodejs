@@ -86,9 +86,17 @@ export async function handleMessage(message, thread, channel) {
       message_id: newMessage.id,
     });
 
+    const messages = channel.state.messages
+      .slice(-5)
+      .filter((msg) => msg.text && msg.text.trim() !== '') // Skip empty or whitespace-only messages
+      .map((msg) => ({
+        role: msg.user.id.includes('ai-bot') ? 'assistant' : 'user',
+        content: msg.text.trim(), // Trim whitespace from the text
+      }));
+
     anthropicStream = await anthropic.messages.create({
       max_tokens: 1024,
-      messages: [{ role: 'user', content: message }],
+      messages: messages,
       model: 'claude-3-5-sonnet-20241022',
       stream: true,
     });
