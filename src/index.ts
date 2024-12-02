@@ -57,6 +57,8 @@ app.post('/start-ai-agent', async (req, res) => {
       } else {
         aiAgentCache.set(user_id, agent);
       }
+    } else {
+      console.log(`AI Agent ${user_id} already started`);
     }
 
     res.json({ message: 'AI Agent started', data: [] });
