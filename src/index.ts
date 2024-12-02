@@ -52,7 +52,11 @@ app.post('/start-ai-agent', async (req, res) => {
       );
 
       await agent.init();
-      aiAgentCache.set(user_id, agent);
+      if (aiAgentCache.has(user_id)) {
+        await agent.dispose();
+      } else {
+        aiAgentCache.set(user_id, agent);
+      }
     }
 
     res.json({ message: 'AI Agent started', data: [] });
