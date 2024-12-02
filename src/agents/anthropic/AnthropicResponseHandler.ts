@@ -60,15 +60,15 @@ export class AnthropicResponseHandler {
       case 'content_block_delta':
         if (messageStreamEvent.delta.type !== 'text_delta') break;
         this.message_text += messageStreamEvent.delta.text;
+        this.chunk_counter++;
         if (
           this.chunk_counter % 15 === 0 ||
-          (this.chunk_counter < 8 && this.chunk_counter % 2 === 0)
+          (this.chunk_counter < 8 && this.chunk_counter % 2 !== 0)
         ) {
           await this.chatClient.partialUpdateMessage(this.message.id, {
             set: { text: this.message_text, generating: true },
           });
         }
-        this.chunk_counter++;
         break;
       case 'message_stop':
         await this.chatClient.partialUpdateMessage(this.message.id, {

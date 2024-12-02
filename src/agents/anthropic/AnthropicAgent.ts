@@ -71,6 +71,8 @@ export class AnthropicAgent implements AIAgent {
       message_id: channelMessage.id,
     });
 
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     const handler = new AnthropicResponseHandler(
       anthropicStream,
       this.chatClient,
