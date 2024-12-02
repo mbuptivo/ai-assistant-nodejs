@@ -32,7 +32,7 @@ app.post('/start-ai-agent', async (req, res) => {
 
   const user_id = `ai-bot-${channel_id}`;
   try {
-    if (!aiAgentCache.has(user_id)) {
+    if (!aiAgentCache.has(user_id) && !pendingAiAgents.has(user_id)) {
       pendingAiAgents.add(user_id);
 
       await serverClient.upsertUser({
