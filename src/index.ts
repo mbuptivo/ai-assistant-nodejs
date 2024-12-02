@@ -12,6 +12,7 @@ app.use(cors({ origin: '*' }));
 // Map to store the AI Agent instances
 // [cid: string]: AI Agent
 const aiAgentCache = new Map<string, AIAgent>();
+const pendingAiAgents = new Set<string>();
 
 /**
  * Handle the request to start the AI Agent
@@ -32,6 +33,8 @@ app.post('/start-ai-agent', async (req, res) => {
   const user_id = `ai-bot-${channel_id}`;
   try {
     if (!aiAgentCache.has(user_id)) {
+      pendingAiAgents.add(user_id);
+
       await serverClient.upsertUser({
         id: user_id,
         name: 'AI Bot',
@@ -55,6 +58,8 @@ app.post('/start-ai-agent', async (req, res) => {
     res.json({ message: 'AI Agent started', data: [] });
   } catch (error) {
     res.status(500).json({ error: 'Failed to start AI Agent' });
+  } finally {
+    pendingAiAgents.delete(user_id);
   }
 });
 
