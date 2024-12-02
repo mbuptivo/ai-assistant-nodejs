@@ -15,10 +15,9 @@
   "semi": true,
   "singleQuote": true,
   "tabWidth": 2,
-  "trailingComma": "es5",
+  "trailingComma": "all",
   "useTabs": false,
   "embeddedLanguageFormatting": "auto",
   "vueIndentScriptAndStyle": false,
-  "experimentalTernaries": false,
-  "parser": "babel"
+  "experimentalTernaries": false
 }
