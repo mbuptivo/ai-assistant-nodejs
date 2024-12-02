@@ -16,7 +16,7 @@ export class OpenAIResponseHandler {
     private readonly channel: Channel,
     private readonly message: MessageResponse,
   ) {
-    this.chatClient.on('stop_generating', this.handleStopGenerating);
+    this.chatClient.on('ai_indicator.stop', this.handleStopGenerating);
   }
 
   run = async () => {
@@ -26,7 +26,7 @@ export class OpenAIResponseHandler {
   };
 
   dispose = () => {
-    this.chatClient.off('stop_generating', this.handleStopGenerating);
+    this.chatClient.off('ai_indicator.stop', this.handleStopGenerating);
   };
 
   private handleStopGenerating = async () => {
@@ -42,7 +42,7 @@ export class OpenAIResponseHandler {
     });
     await this.channel.sendEvent({
       // @ts-expect-error - will become available in the next version of the types
-      type: 'ai_indicator_clear',
+      type: 'ai_indicator.clear',
       cid: this.message.cid,
       message_id: this.message.id,
     });
@@ -60,7 +60,7 @@ export class OpenAIResponseHandler {
           console.log('Requires action');
           await this.channel.sendEvent({
             // @ts-expect-error - will become available in the next version of the types
-            type: 'ai_indicator_changed',
+            type: 'ai_indicator.update',
             state: 'AI_STATE_EXTERNAL_SOURCES',
             cid: cid,
             message_id: id,
@@ -74,7 +74,7 @@ export class OpenAIResponseHandler {
         case 'thread.message.created':
           await this.channel.sendEvent({
             // @ts-expect-error - will become available in the next version of the types
-            type: 'ai_indicator_changed',
+            type: 'ai_indicator.update',
             state: 'AI_STATE_GENERATING',
             cid: cid,
             message_id: id,
@@ -102,7 +102,7 @@ export class OpenAIResponseHandler {
           });
           await this.channel.sendEvent({
             // @ts-expect-error - will become available in the next version of the types
-            type: 'ai_indicator_clear',
+            type: 'ai_indicator.clear',
             cid: cid,
             message_id: id,
           });
@@ -199,7 +199,7 @@ export class OpenAIResponseHandler {
   private handleError = async (error: Error) => {
     await this.channel.sendEvent({
       // @ts-expect-error - will become available in the next version of the types
-      type: 'ai_indicator_changed',
+      type: 'ai_indicator.update',
       state: 'AI_STATE_ERROR',
       cid: this.message.cid,
       message_id: this.message.id,

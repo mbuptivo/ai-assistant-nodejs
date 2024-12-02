@@ -13,7 +13,7 @@ export class AnthropicResponseHandler {
     private readonly channel: Channel,
     private readonly message: MessageResponse,
   ) {
-    this.chatClient.on('stop_generating', this.handleStopGenerating);
+    this.chatClient.on('ai_indicator.stop', this.handleStopGenerating);
   }
 
   run = async () => {
@@ -27,7 +27,7 @@ export class AnthropicResponseHandler {
   };
 
   dispose = () => {
-    this.chatClient.off('stop_generating', this.handleStopGenerating);
+    this.chatClient.off('ai_indicator.stop', this.handleStopGenerating);
   };
 
   private handleStopGenerating = async () => {
@@ -42,8 +42,7 @@ export class AnthropicResponseHandler {
     });
     await this.channel.sendEvent({
       // @ts-expect-error - will become available in the next version of the types
-      type: 'ai_indicator_clear',
-      cid: this.message.cid,
+      type: 'ai_indicator.clear',
       message_id: this.message.id,
     });
   };
@@ -55,9 +54,8 @@ export class AnthropicResponseHandler {
       case 'content_block_start':
         await this.channel.sendEvent({
           // @ts-expect-error
-          type: 'ai_indicator_changed',
-          state: 'AI_STATE_GENERATING',
-          cid: this.message.cid,
+          type: 'ai_indicator.update',
+          ai_state: 'AI_STATE_GENERATING',
           message_id: this.message.id,
         });
         break;
@@ -80,8 +78,7 @@ export class AnthropicResponseHandler {
         });
         await this.channel.sendEvent({
           // @ts-expect-error
-          type: 'ai_indicator_clear',
-          cid: this.message.cid,
+          type: 'ai_indicator.clear',
           message_id: this.message.id,
         });
         break;

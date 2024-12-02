@@ -47,6 +47,7 @@ export class AnthropicAgent implements AIAgent {
 
     const messages = this.channel.state.messages
       .slice(-5)
+      .filter((msg) => msg.text && msg.text.trim() !== '')
       .map<MessageParam>((message) => ({
         role: message.user?.id.startsWith('ai-bot') ? 'assistant' : 'user',
         content: message.text || '',
@@ -63,13 +64,16 @@ export class AnthropicAgent implements AIAgent {
       ai_generated: true,
     });
 
-    await this.channel.sendEvent({
-      // @ts-expect-error - will become available in the next version of the types
-      type: 'ai_indicator_changed',
-      state: 'AI_STATE_THINKING',
-      cid: channelMessage.cid,
-      message_id: channelMessage.id,
-    });
+    try {
+      await this.channel.sendEvent({
+        // @ts-expect-error - will become available in the next version of the types
+      type: 'ai_indicator.update',
+      ai_state: 'AI_STATE_THINKING',
+        message_id: channelMessage.id,
+      });
+    } catch (error) {
+      console.error('Failed to send ai indicator update', error);
+    }
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 
