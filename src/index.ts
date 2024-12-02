@@ -12,7 +12,6 @@ app.use(cors({ origin: '*' }));
 // Map to store the AI Agent instances
 // [cid: string]: AI Agent
 const aiAgentCache = new Map<string, AIAgent>();
-const toCid = (type: string, id: string) => `${type}:${id}`;
 
 /**
  * Handle the request to start the AI Agent
@@ -30,10 +29,9 @@ app.post('/start-ai-agent', async (req, res) => {
     return;
   }
 
-  const cid = toCid(channel_type, channel_id);
+  const user_id = `ai-bot-${channel_id}`;
   try {
-    if (!aiAgentCache.has(cid)) {
-      const user_id = `ai-bot-${channel_id}`;
+    if (!aiAgentCache.has(user_id)) {
       await serverClient.upsertUser({
         id: user_id,
         name: 'AI Bot',
@@ -51,7 +49,7 @@ app.post('/start-ai-agent', async (req, res) => {
       );
 
       await agent.init();
-      aiAgentCache.set(cid, agent);
+      aiAgentCache.set(user_id, agent);
     }
 
     res.json({ message: 'AI Agent started', data: [] });
@@ -65,15 +63,15 @@ app.post('/start-ai-agent', async (req, res) => {
  */
 app.post('/stop-ai-agent', async (req, res) => {
   const { channel_id, channel_type = 'messaging' } = req.body;
-  const cid = toCid(channel_type, channel_id);
-  if (aiAgentCache.has(cid)) {
-    const aiAgent = aiAgentCache.get(cid);
+  const userId = `ai-bot-${channel_id}`;
+  if (aiAgentCache.has(userId)) {
+    const aiAgent = aiAgentCache.get(userId);
     await aiAgent!.dispose();
 
     const channel = serverClient.channel(channel_type, channel_id);
-    await channel.removeMembers([`ai-bot-${channel_id}`]);
+    await channel.removeMembers([userId]);
 
-    aiAgentCache.delete(cid);
+    aiAgentCache.delete(userId);
   }
   res.json({ message: 'AI Agent stopped', data: [] });
 });
