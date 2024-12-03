@@ -30,7 +30,7 @@ app.post('/start-ai-agent', async (req, res) => {
     return;
   }
 
-  const user_id = `ai-bot-${channel_id}`;
+  const user_id = `ai-bot-${channel_id.replace(/!/g, '')}`;
   try {
     if (!aiAgentCache.has(user_id) && !pendingAiAgents.has(user_id)) {
       pendingAiAgents.add(user_id);
@@ -41,9 +41,14 @@ app.post('/start-ai-agent', async (req, res) => {
         role: 'admin',
       });
       const channel = serverClient.channel(channel_type, channel_id);
-      await channel.addMembers([user_id]);
-      await channel.watch();
+      try {
+        await channel.addMembers([user_id]);
+      } catch (error) {
+        console.error('Failed to add members to channel', error);
+      }
 
+      await channel.watch();
+      
       const agent = await createAgent(
         user_id,
         platform,
@@ -63,6 +68,7 @@ app.post('/start-ai-agent', async (req, res) => {
 
     res.json({ message: 'AI Agent started', data: [] });
   } catch (error) {
+    console.error('Failed to start AI Agent', error);
     res.status(500).json({ error: 'Failed to start AI Agent' });
   } finally {
     pendingAiAgents.delete(user_id);
@@ -74,7 +80,7 @@ app.post('/start-ai-agent', async (req, res) => {
  */
 app.post('/stop-ai-agent', async (req, res) => {
   const { channel_id, channel_type = 'messaging' } = req.body;
-  const userId = `ai-bot-${channel_id}`;
+  const userId = `ai-bot-${channel_id.replace(/!/g, '')}`;
   if (aiAgentCache.has(userId)) {
     const aiAgent = aiAgentCache.get(userId);
     await aiAgent!.dispose();
