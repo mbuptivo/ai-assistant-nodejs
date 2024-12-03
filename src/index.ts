@@ -31,7 +31,15 @@ app.post('/start-ai-agent', async (req, res) => {
     return;
   }
 
-  const user_id = `ai-bot-${channel_id.replace(/!/g, '')}`;
+  let channel_id_updated = channel_id;
+  if (channel_id.includes(':')) {
+    const parts = channel_id.split(':');
+    if (parts.length > 1) {
+      channel_id_updated = parts[1];
+    }
+  }
+
+  const user_id = `ai-bot-${channel_id_updated.replace(/!/g, '')}`;
   try {
     if (!aiAgentCache.has(user_id) && !pendingAiAgents.has(user_id)) {
       pendingAiAgents.add(user_id);
@@ -41,7 +49,7 @@ app.post('/start-ai-agent', async (req, res) => {
         name: 'AI Bot',
         role: 'admin',
       });
-      const channel = serverClient.channel(channel_type, channel_id);
+      const channel = serverClient.channel(channel_type, channel_id_updated);
       try {
         await channel.addMembers([user_id]);
       } catch (error) {
@@ -54,7 +62,7 @@ app.post('/start-ai-agent', async (req, res) => {
         user_id,
         platform,
         channel_type,
-        channel_id,
+        channel_id_updated,
       );
 
       await agent.init();
