@@ -65,7 +65,7 @@ app.post('/start-ai-agent', async (req, res) => {
     res.json({ message: 'AI Agent started', data: [] });
   } catch (error) {
     const errorMessage = (error as Error).message;
-    console.error('Failed to send ai indicator update', errorMessage);
+    console.error('Failed to start AI Agent', errorMessage);
     res.status(500).json({ error: 'Failed to start AI Agent', reason: errorMessage });
   } finally {
     pendingAiAgents.delete(user_id);
