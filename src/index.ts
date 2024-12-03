@@ -18,7 +18,6 @@ const pendingAiAgents = new Set<string>();
  * Handle the request to start the AI Agent
  */
 app.post('/start-ai-agent', async (req, res) => {
-  console.log('TEST')
   const {
     channel_id,
     channel_type = 'messaging',
@@ -57,7 +56,7 @@ app.post('/start-ai-agent', async (req, res) => {
       }
 
       await channel.watch();
-      
+
       const agent = await createAgent(
         user_id,
         platform,
@@ -79,7 +78,9 @@ app.post('/start-ai-agent', async (req, res) => {
   } catch (error) {
     const errorMessage = (error as Error).message;
     console.error('Failed to start AI Agent', errorMessage);
-    res.status(500).json({ error: 'Failed to start AI Agent', reason: errorMessage });
+    res
+      .status(500)
+      .json({ error: 'Failed to start AI Agent', reason: errorMessage });
   } finally {
     pendingAiAgents.delete(user_id);
   }
@@ -90,17 +91,25 @@ app.post('/start-ai-agent', async (req, res) => {
  */
 app.post('/stop-ai-agent', async (req, res) => {
   const { channel_id, channel_type = 'messaging' } = req.body;
-  const userId = `ai-bot-${channel_id.replace(/!/g, '')}`;
-  if (aiAgentCache.has(userId)) {
-    const aiAgent = aiAgentCache.get(userId);
-    await aiAgent!.dispose();
+  try {
+    const userId = `ai-bot-${channel_id.replace(/!/g, '')}`;
+    if (aiAgentCache.has(userId)) {
+      const aiAgent = aiAgentCache.get(userId);
+      await aiAgent!.dispose();
 
-    const channel = serverClient.channel(channel_type, channel_id);
-    await channel.removeMembers([userId]);
+      const channel = serverClient.channel(channel_type, channel_id);
+      await channel.removeMembers([userId]);
 
-    aiAgentCache.delete(userId);
+      aiAgentCache.delete(userId);
+    }
+    res.json({ message: 'AI Agent stopped', data: [] });
+  } catch (error) {
+    const errorMessage = (error as Error).message;
+    console.error('Failed to stop AI Agent', errorMessage);
+    res
+      .status(500)
+      .json({ error: 'Failed to stop AI Agent', reason: errorMessage });
   }
-  res.json({ message: 'AI Agent stopped', data: [] });
 });
 
 // Start the Express server

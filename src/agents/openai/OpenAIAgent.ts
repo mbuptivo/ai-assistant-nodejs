@@ -91,7 +91,6 @@ export class OpenAIAgent implements AIAgent {
     });
 
     await this.channel.sendEvent({
-      // @ts-expect-error - will become available in the next version of the types
       type: 'ai_indicator.update',
       state: 'AI_STATE_THINKING',
       cid: channelMessage.cid,

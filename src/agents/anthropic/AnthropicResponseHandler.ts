@@ -17,12 +17,17 @@ export class AnthropicResponseHandler {
   }
 
   run = async () => {
-    for await (const messageStreamEvent of this.anthropicStream) {
-      try {
+    try {
+      for await (const messageStreamEvent of this.anthropicStream) {
         await this.handle(messageStreamEvent);
-      } catch (error) {
-        console.error('Error handling message stream event', error);
       }
+    } catch (error) {
+      console.error('Error handling message stream event', error);
+      await this.channel.sendEvent({
+        type: 'ai_indicator.update',
+        ai_state: 'AI_STATE_ERROR',
+        message_id: this.message.id,
+      });
     }
   };
 
@@ -41,7 +46,6 @@ export class AnthropicResponseHandler {
       set: { generating: false },
     });
     await this.channel.sendEvent({
-      // @ts-expect-error - will become available in the next version of the types
       type: 'ai_indicator.clear',
       message_id: this.message.id,
     });
@@ -53,7 +57,6 @@ export class AnthropicResponseHandler {
     switch (messageStreamEvent.type) {
       case 'content_block_start':
         await this.channel.sendEvent({
-          // @ts-expect-error
           type: 'ai_indicator.update',
           ai_state: 'AI_STATE_GENERATING',
           message_id: this.message.id,
@@ -77,7 +80,6 @@ export class AnthropicResponseHandler {
           set: { text: this.message_text, generating: false },
         });
         await this.channel.sendEvent({
-          // @ts-expect-error
           type: 'ai_indicator.clear',
           message_id: this.message.id,
         });

@@ -41,7 +41,6 @@ export class OpenAIResponseHandler {
       set: { generating: false },
     });
     await this.channel.sendEvent({
-      // @ts-expect-error - will become available in the next version of the types
       type: 'ai_indicator.clear',
       cid: this.message.cid,
       message_id: this.message.id,
@@ -59,7 +58,6 @@ export class OpenAIResponseHandler {
         case 'thread.run.requires_action':
           console.log('Requires action');
           await this.channel.sendEvent({
-            // @ts-expect-error - will become available in the next version of the types
             type: 'ai_indicator.update',
             state: 'AI_STATE_EXTERNAL_SOURCES',
             cid: cid,
@@ -73,7 +71,6 @@ export class OpenAIResponseHandler {
           break;
         case 'thread.message.created':
           await this.channel.sendEvent({
-            // @ts-expect-error - will become available in the next version of the types
             type: 'ai_indicator.update',
             state: 'AI_STATE_GENERATING',
             cid: cid,
@@ -101,7 +98,6 @@ export class OpenAIResponseHandler {
             set: { text, generating: false },
           });
           await this.channel.sendEvent({
-            // @ts-expect-error - will become available in the next version of the types
             type: 'ai_indicator.clear',
             cid: cid,
             message_id: id,
@@ -198,7 +194,6 @@ export class OpenAIResponseHandler {
 
   private handleError = async (error: Error) => {
     await this.channel.sendEvent({
-      // @ts-expect-error - will become available in the next version of the types
       type: 'ai_indicator.update',
       state: 'AI_STATE_ERROR',
       cid: this.message.cid,

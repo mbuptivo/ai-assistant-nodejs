@@ -66,9 +66,8 @@ export class AnthropicAgent implements AIAgent {
 
     try {
       await this.channel.sendEvent({
-        // @ts-expect-error - will become available in the next version of the types
-      type: 'ai_indicator.update',
-      ai_state: 'AI_STATE_THINKING',
+        type: 'ai_indicator.update',
+        ai_state: 'AI_STATE_THINKING',
         message_id: channelMessage.id,
       });
     } catch (error) {
