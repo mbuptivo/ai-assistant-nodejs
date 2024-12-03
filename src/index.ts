@@ -18,6 +18,7 @@ const pendingAiAgents = new Set<string>();
  * Handle the request to start the AI Agent
  */
 app.post('/start-ai-agent', async (req, res) => {
+  console.log('TEST')
   const {
     channel_id,
     channel_type = 'messaging',
@@ -68,8 +69,9 @@ app.post('/start-ai-agent', async (req, res) => {
 
     res.json({ message: 'AI Agent started', data: [] });
   } catch (error) {
-    console.error('Failed to start AI Agent', error);
-    res.status(500).json({ error: 'Failed to start AI Agent' });
+    const errorMessage = (error as Error).message;
+    console.error('Failed to start AI Agent', errorMessage);
+    res.status(500).json({ error: 'Failed to start AI Agent', reason: errorMessage });
   } finally {
     pendingAiAgents.delete(user_id);
   }
