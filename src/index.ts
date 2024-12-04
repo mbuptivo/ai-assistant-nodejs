@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { AIAgent } from './agents/types';
 import { createAgent } from './agents/createAgent';
-import { serverClient } from './serverClient';
+import { apiKey, serverClient } from './serverClient';
 
 const app = express();
 app.use(express.json());
@@ -15,7 +15,7 @@ const aiAgentCache = new Map<string, AIAgent>();
 const pendingAiAgents = new Set<string>();
 
 app.get('/', (req, res) => {
-  res.json({ message: 'Server is running' });
+  res.json({ message: 'Server is running', apiKey: apiKey });
 });
 
 /**
