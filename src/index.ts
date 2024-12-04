@@ -14,6 +14,10 @@ app.use(cors({ origin: '*' }));
 const aiAgentCache = new Map<string, AIAgent>();
 const pendingAiAgents = new Set<string>();
 
+app.get('/', (req, res) => {
+  res.json({ message: 'Server is running' });
+});
+
 /**
  * Handle the request to start the AI Agent
  */
