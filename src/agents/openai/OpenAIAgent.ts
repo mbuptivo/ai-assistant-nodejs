@@ -7,7 +7,7 @@ export class OpenAIAgent implements AIAgent {
   private openai?: OpenAI;
   private assistant?: OpenAI.Beta.Assistants.Assistant;
   private openAiThread?: OpenAI.Beta.Threads.Thread;
-  private lastInteractionTs = 0;
+  private lastInteractionTs = Date.now();
 
   private handlers: OpenAIResponseHandler[] = [];
 

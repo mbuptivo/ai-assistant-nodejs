@@ -7,7 +7,7 @@ import type { AIAgent } from '../types';
 export class AnthropicAgent implements AIAgent {
   private anthropic?: Anthropic;
   private handlers: AnthropicResponseHandler[] = [];
-  private lastInteractionTs = 0;
+  private lastInteractionTs = Date.now();
 
   constructor(
     readonly chatClient: StreamChat,
