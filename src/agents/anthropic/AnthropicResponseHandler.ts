@@ -79,8 +79,12 @@ export class AnthropicResponseHandler {
           }
         }
         break;
-      case 'message_stop':
       case 'message_delta':
+        await this.chatClient.partialUpdateMessage(this.message.id, {
+          set: { text: this.message_text, generating: false },
+        });
+      case 'message_stop':
+        await new Promise((resolve) => setTimeout(resolve, 500));
         await this.chatClient.partialUpdateMessage(this.message.id, {
           set: { text: this.message_text, generating: false },
         });

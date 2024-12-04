@@ -82,7 +82,7 @@ export class AnthropicAgent implements AIAgent {
       console.error('Failed to send ai indicator update', error);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 750));
 
     const handler = new AnthropicResponseHandler(
       anthropicStream,
