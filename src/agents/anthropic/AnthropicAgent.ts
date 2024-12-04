@@ -45,13 +45,21 @@ export class AnthropicAgent implements AIAgent {
     const message = e.message.text;
     if (!message) return;
 
-    const messages = this.channel.state.messages
+    var messages = this.channel.state.messages
       .slice(-5)
       .filter((msg) => msg.text && msg.text.trim() !== '')
       .map<MessageParam>((message) => ({
         role: message.user?.id.startsWith('ai-bot') ? 'assistant' : 'user',
         content: message.text || '',
       }));
+
+    if (e.message.parent_id !== undefined) {
+      messages.push({
+        role: 'user',
+        content: message,
+      });
+    }
+
     const anthropicStream = await this.anthropic.messages.create({
       max_tokens: 1024,
       messages,
