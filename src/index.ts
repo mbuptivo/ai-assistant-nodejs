@@ -14,8 +14,24 @@ app.use(cors({ origin: '*' }));
 const aiAgentCache = new Map<string, AIAgent>();
 const pendingAiAgents = new Set<string>();
 
+const inactivityThreshold = 5 * 60 * 1000;
+setInterval(async () => {
+  const now = Date.now();
+  for (const [userId, aiAgent] of aiAgentCache) {
+    if (now - aiAgent.getLastInteraction() > inactivityThreshold) {
+      console.log(`Disposing AI Agent due to inactivity: ${userId}`);
+      await disposeAiAgent(aiAgent, userId);
+      aiAgentCache.delete(userId);
+    }
+  }
+}, 5000);
+
 app.get('/', (req, res) => {
-  res.json({ message: 'Server is running', apiKey: apiKey });
+  res.json({
+    message: 'GetStream AI Server is running',
+    apiKey: apiKey,
+    activeAgents: aiAgentCache.size,
+  });
 });
 
 /**
@@ -94,16 +110,12 @@ app.post('/start-ai-agent', async (req, res) => {
  * Handle the request to stop the AI Agent
  */
 app.post('/stop-ai-agent', async (req, res) => {
-  const { channel_id, channel_type = 'messaging' } = req.body;
+  const { channel_id } = req.body;
   try {
     const userId = `ai-bot-${channel_id.replace(/!/g, '')}`;
-    if (aiAgentCache.has(userId)) {
-      const aiAgent = aiAgentCache.get(userId);
-      await aiAgent!.dispose();
-
-      const channel = serverClient.channel(channel_type, channel_id);
-      await channel.removeMembers([userId]);
-
+    const aiAgent = aiAgentCache.get(userId);
+    if (aiAgent) {
+      await disposeAiAgent(aiAgent, userId);
       aiAgentCache.delete(userId);
     }
     res.json({ message: 'AI Agent stopped', data: [] });
@@ -115,6 +127,16 @@ app.post('/stop-ai-agent', async (req, res) => {
       .json({ error: 'Failed to stop AI Agent', reason: errorMessage });
   }
 });
+
+async function disposeAiAgent(aiAgent: AIAgent, userId: string) {
+  await aiAgent.dispose();
+
+  const channel = serverClient.channel(
+    aiAgent.channel.type,
+    aiAgent.channel.id,
+  );
+  await channel.removeMembers([userId]);
+}
 
 // Start the Express server
 const port = process.env.PORT || 3000;

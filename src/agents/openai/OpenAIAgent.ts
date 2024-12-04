@@ -7,12 +7,13 @@ export class OpenAIAgent implements AIAgent {
   private openai?: OpenAI;
   private assistant?: OpenAI.Beta.Assistants.Assistant;
   private openAiThread?: OpenAI.Beta.Threads.Thread;
+  private lastInteractionTs = 0;
 
   private handlers: OpenAIResponseHandler[] = [];
 
   constructor(
-    private readonly chatClient: StreamChat,
-    private readonly channel: Channel,
+    readonly chatClient: StreamChat,
+    readonly channel: Channel,
   ) {}
 
   dispose = async () => {
@@ -22,6 +23,8 @@ export class OpenAIAgent implements AIAgent {
     this.handlers.forEach((handler) => handler.dispose());
     this.handlers = [];
   };
+
+  getLastInteraction = (): number => this.lastInteractionTs;
 
   init = async () => {
     const apiKey = process.env.OPENAI_API_KEY as string | undefined;
@@ -79,6 +82,8 @@ export class OpenAIAgent implements AIAgent {
 
     const message = e.message.text;
     if (!message) return;
+
+    this.lastInteractionTs = Date.now();
 
     await this.openai.beta.threads.messages.create(this.openAiThread.id, {
       role: 'user',

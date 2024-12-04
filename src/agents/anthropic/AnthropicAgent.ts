@@ -7,10 +7,11 @@ import type { AIAgent } from '../types';
 export class AnthropicAgent implements AIAgent {
   private anthropic?: Anthropic;
   private handlers: AnthropicResponseHandler[] = [];
+  private lastInteractionTs = 0;
 
   constructor(
-    private readonly chatClient: StreamChat,
-    private readonly channel: Channel,
+    readonly chatClient: StreamChat,
+    readonly channel: Channel,
   ) {}
 
   dispose = async () => {
@@ -20,6 +21,8 @@ export class AnthropicAgent implements AIAgent {
     this.handlers.forEach((handler) => handler.dispose());
     this.handlers = [];
   };
+
+  getLastInteraction = (): number => this.lastInteractionTs;
 
   init = async () => {
     const apiKey = process.env.ANTHROPIC_API_KEY as string | undefined;
@@ -45,7 +48,9 @@ export class AnthropicAgent implements AIAgent {
     const message = e.message.text;
     if (!message) return;
 
-    var messages = this.channel.state.messages
+    this.lastInteractionTs = Date.now();
+
+    const messages = this.channel.state.messages
       .slice(-5)
       .filter((msg) => msg.text && msg.text.trim() !== '')
       .map<MessageParam>((message) => ({
