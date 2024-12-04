@@ -67,7 +67,7 @@ export class AnthropicResponseHandler {
         this.message_text += messageStreamEvent.delta.text;
         this.chunk_counter++;
         if (
-          this.chunk_counter % 15 === 0 ||
+          this.chunk_counter % 20 === 0 ||
           (this.chunk_counter < 8 && this.chunk_counter % 2 !== 0)
         ) {
           try {
