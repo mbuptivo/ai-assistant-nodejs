@@ -70,12 +70,17 @@ export class AnthropicResponseHandler {
           this.chunk_counter % 15 === 0 ||
           (this.chunk_counter < 8 && this.chunk_counter % 2 !== 0)
         ) {
-          await this.chatClient.partialUpdateMessage(this.message.id, {
-            set: { text: this.message_text, generating: true },
-          });
+          try {
+            await this.chatClient.partialUpdateMessage(this.message.id, {
+              set: { text: this.message_text, generating: true },
+            });
+          } catch (error) {
+            console.error('Error updating message', error);
+          }
         }
         break;
       case 'message_stop':
+      case 'message_delta':
         await this.chatClient.partialUpdateMessage(this.message.id, {
           set: { text: this.message_text, generating: false },
         });
