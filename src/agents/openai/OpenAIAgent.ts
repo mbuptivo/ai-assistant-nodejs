@@ -39,8 +39,7 @@ export class OpenAIAgent implements AIAgent {
     } else {
       this.assistant = await this.openai.beta.assistants.create({
         name: 'Stream AI Assistant',
-        instructions:
-          'You are an AI assistant. Help users with their questions.',
+        instructions: 'You are an AI assistant. Help users with their questions.',
         tools: [
           { type: 'code_interpreter' },
           {
@@ -67,16 +66,28 @@ export class OpenAIAgent implements AIAgent {
               },
             },
           },
-        ],
-        model: 'gpt-4o',
-      });
+      ],
+      model: 'gpt-4o',
+    });
+
+    const threadIdFromChannel = process.env.OPENAI_CHANNEL_THREADS as boolean | undefined;
+    if (threadIdFromChannel && this.channel.data?.openaiThreadId) {
+      this.openAiThread = await this.openai.beta.threads.retrieve(
+        this.channel.data?.openaiThreadId as string,
+      );
+    } else {
+      this.openAiThread = await this.openai.beta.threads.create();
+
+      if (threadIdFromChannel) {
+        this.channel.updatePartial({
+          set: { openaiThreadId: this.openAiThread.id },
+        });
+      }
     }
 
-    if (!this.assistant) {
-      throw new Error('Could not create or retrieve OpenAI assistant');
+    if (!this.openAiThread) {
+      throw new Error('Could not create or retrieve OpenAI thread');
     }
-
-    this.openAiThread = await this.openai.beta.threads.create();
 
     this.chatClient.on('message.new', this.handleMessage);
   };
