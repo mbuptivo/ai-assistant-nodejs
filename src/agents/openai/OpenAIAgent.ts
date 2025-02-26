@@ -46,8 +46,7 @@ export class OpenAIAgent implements AIAgent {
             type: 'function',
             function: {
               name: 'getCurrentTemperature',
-              description:
-                'Get the current temperature for a specific location',
+              description: 'Get the current temperature for a specific location',
               parameters: {
                 type: 'object',
                 properties: {
@@ -58,23 +57,21 @@ export class OpenAIAgent implements AIAgent {
                   unit: {
                     type: 'string',
                     enum: ['Celsius', 'Fahrenheit'],
-                    description:
-                      "The temperature unit to use. Infer this from the user's location.",
+                    description: "The temperature unit to use. Infer this from the user's location.",
                   },
                 },
                 required: ['location', 'unit'],
               },
             },
           },
-      ],
-      model: 'gpt-4o',
-    });
+        ],
+        model: 'gpt-4o',
+      });
+    }
 
     const threadIdFromChannel = process.env.OPENAI_CHANNEL_THREADS as boolean | undefined;
     if (threadIdFromChannel && this.channel.data?.openaiThreadId) {
-      this.openAiThread = await this.openai.beta.threads.retrieve(
-        this.channel.data?.openaiThreadId as string,
-      );
+      this.openAiThread = await this.openai.beta.threads.retrieve(this.channel.data?.openaiThreadId as string);
     } else {
       this.openAiThread = await this.openai.beta.threads.create();
 
@@ -127,17 +124,10 @@ export class OpenAIAgent implements AIAgent {
 
     const run = await this.openai.beta.threads.runs.create(this.openAiThread.id, {
       assistant_id: this.assistant.id,
-	  stream: true
+      stream: true,
     });
 
-    const handler = new OpenAIResponseHandler(
-      this.openai,
-      this.openAiThread,
-      run,
-      this.chatClient,
-      this.channel,
-      channelMessage,
-    );
+    const handler = new OpenAIResponseHandler(this.openai, this.openAiThread, run, this.chatClient, this.channel, channelMessage);
     void handler.run();
     this.handlers.push(handler);
   };
